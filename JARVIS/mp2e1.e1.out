@@ -1,0 +1,47 @@
+Warning: no access to tty (Bad file descriptor).
+Thus no job control in this shell.
+
+*******************************************************************************
+*****                            ANNOUNCEMENTS                            *****
+*******************************************************************************
+12 Jan 2012: NOTICE - UPCOMING CHANGES TO SOFTWARE LICENSE RESERVATIONS:  The
+new Shared License Buffer (SLB) will go into production on 1/30/2012. As of
+this date, SLB license reservations will be required to run all SLB-managed
+software Packages (Abaqus, Accelrys, ANSYS, Cobalt, MATLAB). Job submissions
+without SLB reservations will be denied software licenses. For additional
+information, please visit the CCAC User Portal (help.ccac.hpc.mil).
+
+*******************************************************************************
+
+*******************************************************************************
+*                                                                             *
+*          Learn more about making the most of your allocation at             *
+*               http://www.benchmarking.hpc.mil/                              *
+*                                                                             *
+*******************************************************************************
+
+-------------------------------------------------------------------------------
+|  Problems, questions, comments?  Call the Consolidated Customer Assistance  |
+|  Center (CCAC) at 1-877-222-2039 or send e-mail to Help@ccac.hpc.mil.       |
+-------------------------------------------------------------------------------
+
+*****************************************************************************
+* System Name (Model)           Compute Nodes   Cores/Node   Avail_Mem/Node *
+* garnet (Cray XE6)                  1260           16            30 Gb     *
+*****************************************************************************
+
+             ERDC DSRC - Subproject Usage Information (in CPU Hours)
+                      As of 0105 hours CST 18 January 2012
+             Fiscal Year 2012 (01 October 2011 - 30 September 2012)
+                  Fiscal Year Hours Remaining: 6152 ( 70.04%)
+
+                           Hours       Hours       Hours     Percent  Background
+System    Subproject     Allocated      Used     Remaining  Remaining Hours Used
+========= ============= =========== =========== =========== ========= ==========
+garnet    ARLAP23623530   1000000.0         3.1    999996.9   100.00%        0.0
+garnet    ARLAP23623C5L   4500000.0   2049808.5   2450191.5    54.45%        0.0
+
+news: diskuse_work diskuse_home system_info.txt
+pgf90 -c    cell_volume.f90
+pgf90 -c    md_berendsen_f.f90
+pgf90  -o md.exe    header.o input.o forces.o bks.o control.o atom_types.o parse_comma.o md.o random.o ke_and_t.o matprt.o com_momentum.o arl_charm.o invert.o bfgs.o routines.o dblas1.o dblas2.o dblas3.o cpusec.o md_nose.o md_constraints.o constraints.o md_constraints_nose.o tersoff_key.o tersoff.o diff_theta.o lj_key.o lj_pot.o exp6_key.o exp6_pot.o morse_key.o morse_pot.o cell_key.o cell_volume.o md_berendsen.o neighbor_list.o md_berendsen_f.o angular.o bfgs_cell.o get_stress.o stress_key.o cg.o fcn.o cgsearch.o cgfam.o dump_final.o elastic.o eig.o 

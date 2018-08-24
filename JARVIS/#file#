@@ -1,0 +1,4 @@
+garnet: cp ../RDX8/cp2k.newest .
+garnet: cp ../RDX8/cp2k_tensor .
+garnet: cp ../RDX8/md.exe  .
+garnet: cp ../RDX8/make_opts .

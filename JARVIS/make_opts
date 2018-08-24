@@ -1,0 +1,67 @@
+
+
+
+names[0]=
+names[1]=FIXED_FRAME
+
+j=0
+while test $j -lt 2
+do
+####################################################################################################
+# set i=1 for now to save allocation
+i=3
+while test $i -gt 0
+do
+
+if [ $i -eq 3 ]
+then
+steps="800"
+else
+steps="100"
+fi
+
+
+
+
+     mkdir OPTALGO.$i${names[$j]}
+     cd OPTALGO.$i${names[$j]}
+     cp ../BASIS_MOLOPT .
+     cp ../GTH_POTENTIALS .
+     cp ../INPUT.CP2K .
+     cp ../XYZ .
+     cp ../cp2k.psmp .
+     cp ../cp2k_tensor . 
+     cp ../dftd3.dat .
+###     cp ../guess.wfn .
+     cp ../md.exe .
+     cp ../INPUT.TEMPLATE ./INPUT
+     echo "'*CONTROL* OPTALGO=$i. ${names[$j]} AFRC=0.00050 ARMS=0.00050 CFRC=0.00090 CRMS=0.00090 CELL_STEPS=$steps. MAXCYC=80.   CELL_OPT UPDATE=20000.0 DFT BFGS  PBC  CUTOFF=3.50 '">>INPUT
+
+direc=`pwd`
+
+if [ $j -eq 1 ]
+then
+letter=".f"
+else
+letter=""
+fi
+
+echo "#!/bin/bash">job.s
+echo "#PBS -A ARLAP23623530">>job.s
+echo "#PBS -l select=4:ncpus=32:mpiprocs=32">>job.s
+echo "#PBS -l walltime=168:00:00">>job.s
+echo "#PBS -q R849811">>job.s
+echo "#PBS -N $1.$i$letter">>job.s
+echo "#PBS -o ccdf2.f2.out">>job.s
+echo "#PBS -e ccdf2.f2.err">>job.s
+echo "module load PrgEnv-gnu">>job.s
+echo "module load fftw">>job.s
+echo "cd $direc">>job.s
+echo "./md.exe">>job.s
+qsub job.s
+cd ..
+
+i=`expr $i - 1`
+done
+j=`expr $j + 1`
+done

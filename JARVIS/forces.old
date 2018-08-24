@@ -1,0 +1,564 @@
+ subroutine get_forces(rxyz0, fxyz, ener, virial) ! input coordinates are BOHR and output force/ener should be Hartree
+use potentials
+use control_module
+use atom_types_module
+use constants
+use tersoff_module
+use lj_module
+use exp6_module
+use morse_module
+use cell_module
+use virial_mod
+use hugoniot_module
+  implicit double precision (a-h,o-z)
+  double precision,dimension(3,natoms)::rxyz0,fxyz,forces,rxyzsave
+  double precision::ener! ,virial
+  double precision,dimension(3,3)::sinv,tempc,virial,vir_tersoff,vir_lj,vir_angular,vir_bks,vir_exp6,vir_cp2k,vir_lammps
+  double precision,dimension(3,3)::cgrad_mopac
+  integer,dimension(3)::indx
+  character*4::ctrash
+  character*40::ctrash2
+  character*100::ch2,ch3,ch4
+  logical::irepeat
+  double precision,dimension(3,natoms+3)::forcemop
+  data ipass/0/
+  save ipass
+
+interface
+ subroutine bks_pot(ax,ay,az,atmsym,nat,rxyz0, fxyz, ener,virial)
+  double precision,dimension(3,nat)::rxyz0,fxyz
+  integer::nat
+  character(4),dimension(nat)::atmsym
+  double precision::ax,ay,az
+  double precision,intent(inout)::ener
+ double precision,dimension(3,3)::virial
+ end subroutine bks_pot
+
+subroutine j_tersoff(ax,ay,az,atmsym,nat,rxyz0, fxyz, ener , virial)
+  double precision,dimension(3,nat)::rxyz0,fxyz
+  integer::nat
+  character(4),dimension(nat)::atmsym
+  double precision::ener,ax,ay,az  !,virial
+  double precision,dimension(3,3)::virial
+end subroutine j_tersoff
+
+ subroutine lj_pot(ax,ay,az,atmsym,nat,rxyz0, fxyz, ener, virial)
+  double precision,dimension(3,nat)::rxyz0,fxyz
+  integer::nat
+  character(4),dimension(nat)::atmsym
+  double precision::ener,ax,ay,az
+  double precision,dimension(3,3)::virial
+ end subroutine lj_pot
+
+ subroutine exp6_pot(ax,ay,az,atmsym,nat,rxyz0, fxyz, ener, virial)
+  double precision,dimension(3,nat)::rxyz0,fxyz
+  integer::nat
+  character(4),dimension(nat)::atmsym
+  double precision,dimension(3,3)::virial
+  double precision::ener,ax,ay,az
+ end subroutine exp6_pot
+
+ subroutine morse_pot(ax,ay,az,atmsym,nat,rxyz0, fxyz, ener)
+  double precision,dimension(3,nat)::rxyz0,fxyz
+  integer::nat
+  character(4),dimension(nat)::atmsym
+  double precision::ener,ax,ay,az
+ end subroutine morse_pot
+
+   subroutine cell_volume(cell_in,volume)
+   double precision,dimension(3,3),intent(in)::cell_in
+   double precision,intent(inout)::volume
+   end subroutine cell_volume
+
+end interface
+  energy=0.0d0 !the output energy
+  fxyz=0.0d0 !the output forces
+  virial=0.0d0
+  rxyzsave=rxyz0
+
+  if(PBC)then ! wrap the coordinates
+
+     if(cubic)then
+     avec=cell_lengths(1)
+     bvec=cell_lengths(2)
+     cvec=cell_lengths(3)
+
+!!!rxyz0=rxyz0+.5
+
+     do i=1,natoms
+            rxyz0(1,i)=modulo(rxyz0(1,i),avec)
+            rxyz0(2,i)=modulo(rxyz0(2,i),bvec)
+            rxyz0(3,i)=modulo(rxyz0(3,i),cvec)
+     end do
+     else
+         cell_copy=cell
+         call migs(cell_copy,3,sinv,indx)
+
+open(unit=75,file='OUTPUT.TRAJECTORY-WRAPPED',access='append')
+write(75,*)natoms
+write(75,*)'step', ipass
+
+         do i=1,natoms
+          ssx=sinv(1,1)*rxyz0(1,i)+sinv(1,2)*rxyz0(2,i)+sinv(1,3)*rxyz0(3,i)
+          ssy=sinv(2,1)*rxyz0(1,i)+sinv(2,2)*rxyz0(2,i)+sinv(2,3)*rxyz0(3,i)
+          ssz=sinv(3,1)*rxyz0(1,i)+sinv(3,2)*rxyz0(2,i)+sinv(3,3)*rxyz0(3,i)
+ !         write(*,23)input_names(i),ssx,ssy,ssz
+
+!          ssx=ssx
+!          ssy=ssy
+!          ssz=ssz
+!          write(*,23)i,input_names(i),ssx,ssy,ssz
+
+          xss=ssx-floor(ssx)
+          yss=ssy-floor(ssy)
+          zss=ssz-floor(ssz)
+
+          fracs(1,i)=xss
+          fracs(2,i)=yss
+          fracs(3,i)=zss
+          !write(*,*)input_names(i),xss,yss,zss
+          rxyz0(1,i)=cell(1,1)*xss+cell(1,2)*yss+cell(1,3)*zss
+          rxyz0(2,i)=cell(2,1)*xss+cell(2,2)*yss+cell(2,3)*zss
+          rxyz0(3,i)=cell(3,1)*xss+cell(3,2)*yss+cell(3,3)*zss
+          write(75,50)input_names(i),rxyz0(1,i)*au_to_ang,rxyz0(2,i)*au_to_ang,rxyz0(3,i)*au_to_ang
+         end do
+
+         close(75)
+
+    end if
+50 format(A,f10.5,f10.5,f10.5)
+  end if
+
+!print*,'--------------------------'
+!xdiff=.5 -fracs(1,1)
+!ydiff=.5 -fracs(2,1)
+!zdiff=.5 -fracs(3,1)
+
+!do i=1,natoms
+!write(*,23)i,input_names(i),fracs(1,i)+xdiff,fracs(2,i)+ydiff,fracs(3,i)+zdiff
+!end do
+!print*,'--------------'
+
+!rxyz0=rxyz0*.52917d0
+!do i=1,natoms
+!print*,i,input_names(i),rxyz0(1,i),rxyz0(2,i),rxyz0(3,i)
+!end do
+
+!stop
+
+23 format(i3,A,f20.15,f20.15,f20.15,i2,i2,i2,i2,i2,i2)
+! build neighbor list
+ipass=ipass+1
+if(ipass.eq.1 .or. mod(ipass,iupdate_list).eq.0 )then
+ call neighbor_list(natoms,rxyz0,cell_lengths(1),cell_lengths(2),cell_lengths(3)) ! store in global arrays
+end if
+! select force environment
+
+!goto 123
+  if(bks)then
+ a_vec=avec*0.5291772108d0
+ b_vec=bvec*0.5291772108d0
+ c_vec=cvec*0.5291772108d0
+     rxyz0=0.5291772108d0*rxyz0 ! subroutine uses angstroms but returns Hartree/bohr
+     call bks_pot(a_vec,b_vec,c_vec,input_names,natoms,rxyz0, forces, ener,vir_bks)
+     fxyz=fxyz+forces
+     energy=energy+ener
+     rxyz0=rxyz0/0.5291772108d0 ! back to bohr
+     virial=virial+vir_bks
+  end if
+
+ if(tersoff_potential)then
+ call j_tersoff(avec,bvec,cvec,input_names,natoms,rxyz0, forces, ener , vir_tersoff)
+ fxyz=fxyz+forces
+ energy=energy+ener
+ virial=virial+vir_tersoff
+ end if
+
+ if(lj_potential)then
+ call lj_pot(avec,bvec,cvec,input_names,natoms,rxyz0, forces, ener, vir_lj)
+ fxyz=fxyz+forces
+ energy=energy+ener
+ virial=virial+vir_lj
+ end if
+
+ if(exp6_potential)then
+ call exp6_pot(avec,bvec,cvec,input_names,natoms,rxyz0, forces, ener, vir_exp6)
+ fxyz=fxyz+forces
+ energy=energy+ener
+ virial=virial+vir_exp6
+ end if
+
+ if(morse_potential)then
+ call morse_pot(avec,bvec,cvec,input_names,natoms,rxyz0, forces, ener)
+ fxyz=fxyz+forces
+ energy=energy+ener
+ print*,'morse energy',ener
+ end if
+
+if(angular_potential)then
+ call angular(avec,bvec,cvec,input_names,natoms,rxyz0, forces, ener , vir_angular)
+ fxyz=fxyz+forces
+ energy=energy+ener
+ virial=virial+vir_angular
+ end if
+
+
+if(lammps)then
+ call lammps_pot(input_names,natoms,rxyz0, forces, ener , vir_lammps)
+fxyz=fxyz+forces
+energy=energy+ener
+ virial=virial+vir_lammps
+end if
+
+
+
+
+ ener=energy
+
+virial(1,2)=virial(2,1)
+virial(1,3)=virial(3,1)
+virial(2,3)=virial(3,2)
+virial_global=virial
+
+
+if(CP2K)then
+rxyz0=rxyzsave
+         open(unit=1,file='cell.bfgs')
+         write(1,33)'A',cell(1,1)*au_to_ang,cell(2,1)*au_to_ang,cell(3,1)*au_to_ang
+         write(1,33)'B',cell(1,2)*au_to_ang,cell(2,2)*au_to_ang,cell(3,2)*au_to_ang
+         write(1,33)'C',cell(1,3)*au_to_ang,cell(2,3)*au_to_ang,cell(3,3)*au_to_ang
+         close(1)
+
+factor=au_to_ang
+        open(unit=1,file='xyz.bfgs')
+          do i=1,natoms
+           write(1,33)input_names(i),rxyz0(1,i)*factor,rxyz0(2,i)*factor,rxyz0(3,i)*factor
+                 end do
+          close(1)
+ call system('./cp2k_tensor')
+if(oldcp2k)then
+          open(unit=1,file='tensor.config')
+          read(1,*)vir_cp2k(1,1),vir_cp2k(1,2),vir_cp2k(1,3)
+          read(1,*)vir_cp2k(2,1),vir_cp2k(2,2),vir_cp2k(2,3)
+          read(1,*)vir_cp2k(3,1),vir_cp2k(3,2),vir_cp2k(3,3)
+          close(1)
+else
+          open(unit=1,file='tensor.config')
+          read(1,*)ctrash
+          read(1,*)ctrash
+          read(1,*)ctrash,vir_cp2k(1,1),vir_cp2k(1,2),vir_cp2k(1,3)
+          read(1,*)ctrash,vir_cp2k(2,1),vir_cp2k(2,2),vir_cp2k(2,3)
+          read(1,*)ctrash,vir_cp2k(3,1),vir_cp2k(3,2),vir_cp2k(3,3)
+          close(1)
+end if
+
+
+
+
+virial_unsymm=vir_cp2k
+
+
+!symmetrize CP2K tensor
+do kk=1,2
+do jj=kk+1,3
+rrr=(vir_cp2k(kk,jj)+vir_cp2k(jj,kk))*0.5d0
+vir_cp2k(kk,jj)=rrr
+vir_cp2k(jj,kk)=rrr
+end do
+end do
+
+if(oldcp2k)then
+open(unit=1,file='energy.cp2k')
+read(1,*)ener
+close(1)
+else
+open(unit=1,file='energy.cp2k')
+read(1,*)ctrash2,ctrash2,ener
+close(1)
+!print*,ener
+end if
+
+
+
+
+!if(dynamics)then
+!print*,'picking up cp2k forces'
+open(unit=1,file='FORCES.CP2K')
+if(oldcp2k)then
+  read(1,*)junk
+  read(1,*)ctrash
+  do i=1,natoms
+   read(1,*)ctrash,fxyz(1,i),fxyz(2,i),fxyz(3,i)
+  end do
+else
+ read(1,*)ctrash
+ read(1,*)ctrash
+ do i=1,natoms
+  read(1,*)itrash,itrash,ctrash,fxyz(1,i),fxyz(2,i),fxyz(3,i)
+ end do  
+end if
+close(1)
+!!!stop
+!end if
+cell_stats=.false.
+just_volume=.true.
+call cell_volume(cell,vol2)
+hugoniot_volume=vol2
+just_volume=.false.
+cell_stats=.true.
+virial=vol2*vir_cp2k/29421.0107637093d0
+virial_global=virial
+virial_unsymm=vol2*virial_unsymm/29421.0107637093d0
+!print*,vir_cp2k
+end if
+
+if(espresso)then
+rxyz0=rxyzsave
+         open(unit=1,file='cell.bfgs')
+         write(1,*)cell(1,1)*au_to_ang,cell(2,1)*au_to_ang,cell(3,1)*au_to_ang
+         write(1,*)cell(1,2)*au_to_ang,cell(2,2)*au_to_ang,cell(3,2)*au_to_ang
+         write(1,*)cell(1,3)*au_to_ang,cell(2,3)*au_to_ang,cell(3,3)*au_to_ang
+         close(1)
+
+factor=au_to_ang
+        open(unit=1,file='xyz.bfgs')
+          do i=1,natoms
+           write(1,33)input_names(i),rxyz0(1,i)*factor,rxyz0(2,i)*factor,rxyz0(3,i)*factor
+                 end do
+          close(1)
+
+
+
+
+
+open(unit=1,file='guessfile')
+if(ipass.eq.1)then
+  write(1,*)'startingpot = ''atomic'' '
+   write(1,*)'startingwfc = ''atomic'' '
+  else
+   write(1,*)'startingpot = ''file'' '
+   write(1,*)'startingwfc = ''file'' '
+end if
+close(1)
+
+irepeat=.false.
+
+
+398 continue
+ call system('./qe_tensor')
+
+open(unit=1,file='out.last.timestep')
+do i=1,1000000
+ read(1,*,iostat=io)ch3
+  if(io<0)then
+   if(irepeat)then
+    open(unit=761,file='OUTPUT.DTPOLY',access='append')
+    write(761,*)'QE crashed after repeating with atomic guess. Stopping.'
+    close(761)
+    stop
+  end if
+
+
+  open(unit=761,file='OUTPUT.DTPOLY',access='append')
+  write(761,*)'QE crashed. Returning with atomic guess'
+  close(761)
+  open(unit=1,file='guessfile')
+  write(1,*)'startingpot = ''atomic'' '
+  write(1,*)'startingwfc = ''atomic'' '
+  close(1)
+  irepeat=.true.
+  goto 398
+  end if
+if(ch3 == 'highest')exit
+end do
+read(1,*)ch3,ch3,ch3,ch3,ener,ch3
+ener=ener*0.5d0
+
+
+do i=1,1000000
+read(1,*)ch3
+if(ch3 == 'Forces')exit
+end do
+
+700 continue
+do i=1,natoms
+read(1,*,iostat=io)ch3,junk,ch3,junk,ch3,ch3,fxyz(1,i),fxyz(2,i),fxyz(3,i)
+if(io.ne.0)goto 700
+end do
+
+fxyz=fxyz*0.5d0
+
+
+do i=1,1000000
+read(1,*)ch3
+if(ch3 == 'entering')exit
+end do
+do i=1,100
+read(1,*,iostat=io)ch4,ch3,ch3,ch3,ch3,djunk
+if(ch4=='total')exit
+end do
+read(1,*)vir_cp2k(1,1),vir_cp2k(1,2),vir_cp2k(1,3),dj,dj,dj
+read(1,*)vir_cp2k(2,1),vir_cp2k(2,2),vir_cp2k(2,3),dj,dj,dj
+read(1,*)vir_cp2k(3,1),vir_cp2k(3,2),vir_cp2k(3,3),dj,dj,dj
+close(1)
+vir_cp2k=vir_cp2k*29421.0107637093d0*0.5d0 ! convert Ry/au**3 to gpa
+virial_unsymm=vir_cp2k
+
+!symmetrize espresso tensor
+do kk=1,2
+do jj=kk+1,3
+rrr=(vir_cp2k(kk,jj)+vir_cp2k(jj,kk))*0.5d0
+vir_cp2k(kk,jj)=rrr
+vir_cp2k(jj,kk)=rrr
+end do
+end do
+
+cell_stats=.false.
+just_volume=.true.
+call cell_volume(cell,vol2)
+hugoniot_volume=vol2
+just_volume=.false.
+cell_stats=.true.
+virial=vol2*vir_cp2k/29421.0107637093d0
+virial_global=virial
+virial_unsymm=vol2*virial_unsymm/29421.0107637093d0
+end if
+
+!###########################################################################
+
+if(mopac)then
+rxyz0=rxyzsave
+         open(unit=1,file='cell.bfgs')
+         write(1,33)'Tv',cell(1,1)*au_to_ang,cell(2,1)*au_to_ang,cell(3,1)*au_to_ang
+         write(1,33)'Tv',cell(1,2)*au_to_ang,cell(2,2)*au_to_ang,cell(3,2)*au_to_ang
+         write(1,33)'Tv',cell(1,3)*au_to_ang,cell(2,3)*au_to_ang,cell(3,3)*au_to_ang
+         close(1)
+
+
+factor=au_to_ang
+        open(unit=1,file='xyz.bfgs')
+          do i=1,natoms
+           write(1,33)input_names(i),rxyz0(1,i)*factor,rxyz0(2,i)*factor,rxyz0(3,i)*factor
+                 end do
+          close(1)
+irepeat=.false.
+399 continue
+ call system('./mopac_tensor')
+
+
+open(unit=1,file='mopac_energy')
+read(1,*)ch3
+close(1)
+nstart=scan(ch3,'=')
+nstart=nstart+1
+ch2=ch3(nstart:100)
+open(unit=2,file='mopac_energy2')
+write(2,*)ch2
+close(2)
+open(unit=2,file='mopac_energy2')
+read(2,*)ener
+close(2)
+ener=ener/27.21138386d0 
+
+
+
+
+open(unit=1,file='input.aux')
+do i=1,10000000
+read(1,*,iostat=io)ch3
+if(ch3(1:9).eq.'GRADIENTS')then
+read(1,*)forcemop
+exit
+end if
+end do
+close(1)
+
+forcemop=-forcemop*au_to_ang/627.51d0
+
+do i=1,natoms
+fxyz(1,i)=forcemop(1,i)
+fxyz(2,i)=forcemop(2,i)
+fxyz(3,i)=forcemop(3,i)
+end do
+
+nrow=natoms+1
+ii=0
+do i=nrow,natoms+3
+ii=ii+1
+cgrad_mopac(ii,1)=forcemop(1,i)
+cgrad_mopac(ii,2)=forcemop(2,i)
+cgrad_mopac(ii,3)=forcemop(3,i)
+end do
+
+!convert to gpa here
+! transformatation is stress = c' * cell
+!!!cgrad_mopac=-cgrad_mopac*au_to_ang/627.51d0 ! minus because of mopac convention
+cell_stats=.false.
+just_volume=.true.
+call cell_volume(cell,vol2)
+vir_cp2k=matmul(cgrad_mopac,cell)
+vir_cp2k=vir_cp2k*29421.0107637093d0/vol2
+
+virial_unsymm=vir_cp2k
+
+!symmetrize espresso tensor
+do kk=1,2
+do jj=kk+1,3
+rrr=(vir_cp2k(kk,jj)+vir_cp2k(jj,kk))*0.5d0
+vir_cp2k(kk,jj)=rrr
+vir_cp2k(jj,kk)=rrr
+end do
+end do
+
+hugoniot_volume=vol2
+just_volume=.false.
+cell_stats=.true.
+virial=vol2*vir_cp2k/29421.0107637093d0
+virial_global=virial
+virial_unsymm=vol2*virial_unsymm/29421.0107637093d0
+end if
+
+
+ 33      format(A2,f20.15,f20.15,f20.15)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if(hessian)fxyz_global=fxyz
+
+rxyz0=rxyzsave
+return
+!123 continue
+!if(charm)then
+!rxyz0=au_to_ang*rxyz0
+!forces=0.
+!call arl_charm(a_vec,b_vec,c_vec,input_names,natoms,rxyz0,forces,ener,.false.)
+!ener=ener/27.21
+!fxyz=-1.0d0*forces*au_to_ang7d0/27.21d0
+!rxyz0=rxyz0/au_to_ang
+!end if
+
+end subroutine get_forces
+
